@@ -1,4 +1,6 @@
 .venv/
+.build-cache/
+vendor/
 build/
 dist/
 *.spec

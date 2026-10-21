@@ -3,8 +3,9 @@ import io
 import os
 import tempfile
 import unittest
+from unittest import mock
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 from myna_viewer import card as mc
 from myna_viewer import ocr
@@ -176,6 +177,31 @@ class HostileCardDataTest(unittest.TestCase):
         bomb = png(Image.new('1', (5000, 5000), 1))  # 2500万画素（圧縮後は小さい）
         with self.assertRaises(UnsafeImageError):
             open_image(bomb, TEXT_IMAGE_FORMATS)
+
+
+class OcrTesseractTest(unittest.TestCase):
+    def test_refuses_non_png_input(self):
+        # 画像でないものを渡すと Tesseract がファイル名（URL）の一覧として読むので、渡さないこと
+        with self.assertRaises(ValueError):
+            ocr._recognize(b'https://example.com/a.png\n')
+
+    def test_name_initial_majority_vote(self):
+        answers = iter(['阿部樹', '岡部樹', '阿部樹', '阿部樹', '岡部'])
+        img = Image.new('L', (200, 40), 255)
+        ImageDraw.Draw(img).rectangle((20, 10, 60, 30), fill=0)  # 前処理が「文字あり」と判断する程度の黒
+        b = io.BytesIO()
+        img.save(b, 'PNG')
+        with mock.patch.object(ocr, '_recognize', lambda png: next(answers)):
+            self.assertEqual(ocr.name_initial(b.getvalue(), votes=5), '阿')
+
+    @unittest.skipUnless(ocr.available(), 'vendor/tesseract がない（tools/fetch_tesseract.ps1 で取得）')
+    def test_real_tesseract_reads_prefecture(self):
+        img = Image.new('1', (700, 64), 1)
+        ImageDraw.Draw(img).text((10, 12), '大阪府大阪市北区梅田一丁目',
+                                 font=ImageFont.truetype(r'C:\Windows\Fonts\msmincho.ttc', 36), fill=0)
+        b = io.BytesIO()
+        img.save(b, 'PNG')
+        self.assertEqual(ocr.prefecture_of(b.getvalue()), '大阪府')
 
 
 class OcrHelperTest(unittest.TestCase):

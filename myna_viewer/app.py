@@ -8,6 +8,7 @@
 import datetime
 import os
 import queue
+import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
 
@@ -355,9 +356,23 @@ class App(tk.Tk):
             return  # 確認中にカードが離れて中断された場合も含む
         self.token += 1
         self.show('reading')
-        items = self.session_items
-        run_card_task(self.reader, lambda c: mc.read_visual_info(c, pin), self.queue, ('read', self.token),
-                      after=lambda info: (info, self.recognize_for_history(info, items)))
+        run_card_task(self.reader, lambda c: mc.read_visual_info(c, pin), self.queue, ('read', self.token))
+
+    def start_history_ocr(self, info):
+        """結果を表示した後、裏で OCR してから履歴に保存する（表示を待たせない）。
+
+        画面を戻しても履歴は保存するので、中断用の番号 (token) では捨てない。
+        """
+        mode, items, when = self.session_mode, self.session_items, datetime.datetime.now()
+
+        def worker():
+            try:
+                name, pref = self.recognize_for_history(info, items)
+            except Exception:  # noqa: BLE001 - OCR に失敗しても履歴は残す
+                name = pref = ''
+            self.queue.put(('done', ('history', None), (mode, items, when, info, name, pref)))
+
+        threading.Thread(target=worker, daemon=True).start()
 
     @staticmethod
     def recognize_for_history(info, items):
@@ -370,11 +385,11 @@ class App(tk.Tk):
         name = pref = ''
         if 'name' in items:
             diag.append('[name]')
-            name = ocr.first_char(ocr.recognize(info.name_png, diag=diag))
+            name = ocr.name_initial(info.name_png, diag=diag)
             diag.append('  result: %s' % ('ok' if name else 'not recognized'))
         if 'addr' in items:
             diag.append('[addr]')
-            pref = ocr.prefecture(ocr.recognize(info.addr_png, accept=lambda t: bool(ocr.prefecture(t)), diag=diag))
+            pref = ocr.prefecture_of(info.addr_png, diag=diag)
             diag.append('  result: %s' % ('ok' if pref else 'not recognized'))
         failed = ('name' in items and not name) or ('addr' in items and not pref)
         path = os.path.join(default_dir(), 'ocr_diag.log')
@@ -390,6 +405,9 @@ class App(tk.Tk):
         return name, pref
 
     def on_task_result(self, kind, token, payload, is_error):
+        if kind == 'history':
+            self.save_history(*payload)
+            return
         if token != self.token:
             return  # 中断済みの処理の結果
         if is_error:
@@ -405,11 +423,11 @@ class App(tk.Tk):
             self.show('input')
             self.entries[0].focus_set()
         elif kind == 'read':
-            info, (name_initial, pref) = payload
+            info = payload
             self.clear_inputs()
             self.session_count = None
             self.show_result(info)
-            self.save_history(info, name_initial, pref)
+            self.start_history_ocr(info)
 
     def on_task_error(self, kind, e):
         if isinstance(e, pcsc.ConnectionLostError):
@@ -513,17 +531,16 @@ class App(tk.Tk):
 
     # ---------- 履歴 ----------
 
-    def save_history(self, info, name_initial, pref):
-        items = self.session_items
-        if self.session_mode == MODE_ADULT:
+    def save_history(self, mode, items, when, info, name_initial, pref):
+        if mode == MODE_ADULT:
             kinds = '顔写真・氏名・20歳以上/未満'
-        elif self.session_mode == MODE_AGE:
+        elif mode == MODE_AGE:
             kinds = '顔写真・氏名・年齢'
         else:
             kinds = '・'.join(ITEM_NAMES[k] for k in items)
         record = Record(
-            time=datetime.datetime.now().strftime('%Y/%m/%d %H:%M:%S'),
-            mode=MODE_NAMES[self.session_mode],
+            time=when.strftime('%Y/%m/%d %H:%M:%S'),
+            mode=MODE_NAMES[mode],
             items=kinds,
             name_initial=(name_initial or '（判読不可）') if 'name' in items else '',
             prefecture=(pref or '（判読不可）') if 'addr' in items else '',
