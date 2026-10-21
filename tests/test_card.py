@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 from myna_viewer import card as mc
 from myna_viewer import ocr
@@ -14,6 +14,8 @@ from myna_viewer import tlv as tlvmod
 from myna_viewer.history import History, HistoryError, Record
 from myna_viewer.imaging import PHOTO_FORMATS, TEXT_IMAGE_FORMATS, UnsafeImageError, open_image
 from tests.fakecard import PIN, FakeCard
+
+FIXTURE_ADDRESS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures', 'address_osaka.png')
 
 
 class CardTest(unittest.TestCase):
@@ -196,12 +198,8 @@ class OcrTesseractTest(unittest.TestCase):
 
     @unittest.skipUnless(ocr.available(), 'vendor/tesseract がない（tools/fetch_tesseract.ps1 で取得）')
     def test_real_tesseract_reads_prefecture(self):
-        img = Image.new('1', (700, 64), 1)
-        ImageDraw.Draw(img).text((10, 12), '大阪府大阪市北区梅田一丁目',
-                                 font=ImageFont.truetype(r'C:\Windows\Fonts\msmincho.ttc', 36), fill=0)
-        b = io.BytesIO()
-        img.save(b, 'PNG')
-        self.assertEqual(ocr.prefecture_of(b.getvalue()), '大阪府')
+        # 日本語フォントの無い環境（GitHub Actions など）でも試せるよう、架空の住所を描いた白黒 PNG を使う
+        self.assertEqual(ocr.prefecture_of(read_bytes(FIXTURE_ADDRESS)), '大阪府')
 
 
 class OcrHelperTest(unittest.TestCase):
