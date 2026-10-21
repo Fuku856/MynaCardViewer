@@ -70,7 +70,7 @@ PC/SC 対応の NFC リーダー（Sony RC-S370 など）で動きます。読�
 
 ## リリース
 GitHub の Releases から手動でリリースを作成（公開）すると、GitHub Actions がテストと exe のビルドを行い、
-`MynaCardViewer-<タグ>.exe` と SHA-256 のファイルをリリースに添付します（`.github/workflows/release.yml`）。
+`MynaCardViewer-<タグ>.exe` と、同梱ライブラリのライセンス一式 `MynaCardViewer-<タグ>-licenses.zip` をリリースに添付します（`.github/workflows/release.yml`）。各ファイルの SHA-256 は GitHub のリリース画面に表示されます。
 
 | 対象ブランチ | リリースの種類 |
 |---|---|

@@ -52,5 +52,5 @@ jobs:
           cp dist/MynaCardViewer.exe "$name"
           cp README.md THIRD_PARTY_NOTICES.md vendor/tesseract/licenses/
           (cd vendor/tesseract && 7z a -tzip "../../$licenses" licenses > /dev/null)
-          sha256sum "$name" "$licenses" > "MynaCardViewer-${TAG}.sha256"
-          gh release upload "$TAG" "$name" "$licenses" "MynaCardViewer-${TAG}.sha256" --repo "$GITHUB_REPOSITORY" --clobber
+          # SHA-256 は GitHub がリリースの各ファイルに自動で表示するので、別ファイルは添付しない
+          gh release upload "$TAG" "$name" "$licenses" --repo "$GITHUB_REPOSITORY" --clobber
