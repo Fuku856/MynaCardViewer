@@ -1,0 +1,11 @@
+.venv/
+build/
+dist/
+*.spec
+__pycache__/
+*.pyc
+
+# 読み取り履歴・診断ログはリポジトリに入れない（通常は %LOCALAPPDATA% にある）
+history.dat
+history.csv
+ocr_diag.log
